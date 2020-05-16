@@ -19,6 +19,7 @@ class voice(commands.Cog):
     PROMPT_TIMEOUT = 60
     PRIVATE = "private"
     PUBLIC = "public"
+    DB_PATH ="./config/voice.db"
 
     def __init__(self, bot):
         self.bot = bot
@@ -29,7 +30,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def setupPrivate(self, ctx):
-        conn = sqlite3.connect('voice.db')
+        conn = sqlite3.connect(self.DB_PATH)
         c = conn.cursor()
         guildId = ctx.guild.id
 
@@ -64,7 +65,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def setupPublic(self, ctx):
-        conn = sqlite3.connect('voice.db')
+        conn = sqlite3.connect(self.DB_PATH)
         c = conn.cursor()
         guildId = ctx.guild.id
 
@@ -87,7 +88,7 @@ class voice(commands.Cog):
         
     @voice.command()
     async def remove(self, ctx):
-        conn = sqlite3.connect('voice.db')
+        conn = sqlite3.connect(self.DB_PATH)
         c = conn.cursor()
         guildId = ctx.message.guild.id
         guildInfo = self.getGuildInfo(c, guildId)
@@ -115,7 +116,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def cleanup(self, ctx):
-        conn = sqlite3.connect('voice.db')
+        conn = sqlite3.connect(self.DB_PATH)
         c = conn.cursor()
         guildId = ctx.message.guild.id
         guildInfo = self.getGuildInfo(c, guildId)
@@ -135,7 +136,7 @@ class voice(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        conn = sqlite3.connect('voice.db')
+        conn = sqlite3.connect(self.DB_PATH)
         c = conn.cursor()
         guildId = member.guild.id
         

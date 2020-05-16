@@ -1,4 +1,4 @@
-resources/*
-!resources/.gitkeep
+config/*
+!config/.gitkeep
 
 __pycache__
