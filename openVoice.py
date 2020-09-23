@@ -9,15 +9,25 @@ import traceback
 import sqlite3
 import sys
 import configparser
+import hvac
 
 client = discord.Client()
 
 bot = commands.Bot(command_prefix=".")
 bot.remove_command("help")
 
-config = configparser.ConfigParser()
-config.read("./config/local.ini")
-DISCORD_TOKEN = config["discord"]["token"]
+# Adding vault
+# config = configparser.ConfigParser()
+# config.read("./config/local.ini")
+# DISCORD_TOKEN = config["discord"]["token"]
+
+vaultClient = hvac.Client(
+    url="http://192.168.73.20:1234",
+    token="myroot"
+)
+
+DISCORD_TOKEN = vaultClient.secrets.kv.read_secret_version(path="discord")["data"]["data"]["api-key"]
+
 
 initial_extensions = ['cogs.voice']
 
