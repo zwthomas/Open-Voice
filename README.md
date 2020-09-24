@@ -1,4 +1,4 @@
-# VoiceCreateBot
+# Open-Voice
 
 ![](./doc/openvoice.gif)
 
@@ -20,3 +20,29 @@ token =
 ```
 To the right of the equals sign put your token.
 
+## updates 
+- discord api token now stored in ![vault](https://www.vaultproject.io/)
+- password retrieved using ![hvac](https://github.com/hvac/hvac)
+
+## Docker
+### Building
+```
+docker build --no-cache --tag open-voice:<version> .
+```
+### Running 
+```
+docker run -v path to config:/usr/src/app/config --detach --name open-voice open-voice:<version>
+```
+compose
+```
+---
+version: "2.1"
+services:
+  open-voice:
+    image: localhost:5000/open-voice:latest
+    container_name: open-voice
+    volumes:
+      - path to config:/usr/src/app/config
+    restart: unless-stopped
+
+```
