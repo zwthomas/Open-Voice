@@ -22,8 +22,8 @@ bot.remove_command("help")
 # DISCORD_TOKEN = config["discord"]["token"]
 
 vaultClient = hvac.Client(
-    url="http://192.168.73.20:1234",
-    token="myroot"
+    url="http://192.168.73.20:8200",
+    token="s.tLWbbS9mBlEcDedkystiYG8P"
 )
 
 DISCORD_TOKEN = vaultClient.secrets.kv.read_secret_version(path="discord")["data"]["data"]["api-key"]
