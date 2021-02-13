@@ -15,6 +15,7 @@ client.commands = new Discord.Collection();
 let OPEN_VOICE_SECRETS = {};
 let MONGO_CLIENT;
 let PREFIX = "?";
+let DB;
 
 async function getConnection() {
     let user = encodeURIComponent(OPEN_VOICE_SECRETS["db-username"]);
@@ -23,6 +24,7 @@ async function getConnection() {
     let url = `mongodb://${user}:${password}@192.168.73.20:27017`;
     MONGO_CLIENT = new MongoClient(url, { useNewUrlParser: true, useUnifiedTopology: true });
     await MONGO_CLIENT.connect()
+    DB = MONGO_CLIENT.db("nestdb").collection("open-voice")
 }
 
 
@@ -53,7 +55,7 @@ client.on("message", message => {
     if (!client.commands.has(command)) return;
 
     try {
-        client.commands.get(command).execute(message, args);
+        client.commands.get(command).execute(message, args, DB);
     } catch (error) {
         console.error(error);
         message.reply('there was an error trying to execute that command!');

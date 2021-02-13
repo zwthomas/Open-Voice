@@ -1,7 +1,9 @@
+const dataHelper = require("../helpers/dataHelper");
+
 module.exports = {
     name: "setupPrivate",
     descriptions: "Creates Private Voice Channels",
-    async execute(message, args) {
+    async execute(message, args, db) {
         combineArgs = args.join(" ")
 
         if ((combineArgs.match(/"/g)||[]).length != 4) {
@@ -26,9 +28,10 @@ module.exports = {
         response = await message.guild.channels.create(channelName, {type: "voice", parent: categoryId, name: channelName});
         let channelId = response.id;
 
-        console.log(response)
+        if (!dataHelper.checkForGuild(db, message.guild.id)) {
+            dataHelper.insertGuildIntoDB(db, message.guild.id)
+        }   
         
-
-        // message.channel.send(message.guild)
+        dataHelper.insertNewCategory(db, message.guild.id, categoryId, channelId, true)
     }
 }
