@@ -1,8 +1,9 @@
 const dataHelper = require("../helpers/dataHelper");
+const { execute } = require("./setupPrivate");
 
 module.exports = {
-    name: "setupPrivate",
-    descriptions: "Creates Private Voice Channels",
+    name:  "setupPublic",
+    descriptions: "Creates Public Voice Channels",
     async execute(message, args, db) {
         combineArgs = args.join(" ")
 
@@ -32,8 +33,8 @@ module.exports = {
             dataHelper.insertGuildIntoDB(db, message.guild.id)
         }   
         
-        dataHelper.insertNewCategory(db, message.guild.id, categoryId, channelId, true)
-
+        dataHelper.insertNewCategory(db, message.guild.id, categoryId, channelId, false)
+        
         message.channel.send("Setup Complete")
     }
 }

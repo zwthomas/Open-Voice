@@ -31,6 +31,17 @@ module.exports = {
             db.updateOne({guildId: guildId}, {$set: {public: dataToModify}})
         }
 
+    },
+    getGuildData: async function(db, guildId) {
+        return await db.findOne({guildId: guildId});
+    },
+    
+    privateCreationChannel: function(guildData, channelId)  {
+        return guildData.private.some(e => e.channelId == channelId)
+    },
+
+    publicCreationChannel: function(guildData, channelId) {
+        return guildData.public.some(e => e.channelId == channelId)
     }
 
 }

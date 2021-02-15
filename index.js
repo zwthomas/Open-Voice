@@ -1,6 +1,9 @@
 const Discord = require("discord.js");
 const { MongoClient } = require('mongodb');
 const fs = require("fs");
+const dataHelper = require("./helpers/dataHelper");
+const { privateCreationChannel, publicCreationChannel } = require("./helpers/dataHelper");
+
 
 const VAULT_OPTIONS = {
     apiVersion: "v1",
@@ -60,8 +63,23 @@ client.on("message", message => {
         console.error(error);
         message.reply('there was an error trying to execute that command!');
     }
+})
 
+client.on("voiceStateUpdate", async (oldState, newState) => {
 
+    let guildId = oldState.guild.id;
+    let oldChannel = oldState.channelID;
+    let newChannel = newState.channelID;
+    let guildData = await dataHelper.getGuildData(DB, guildId)
+    let newGuildData = { ...guildData };
+
+    if (newChannel != null) {
+        if (privateCreationChannel(guildData, newChannel)) {
+            console.log("Create Private")
+        } else if (publicCreationChannel(guildData, newChannel)) {
+            console.log("Create Public")
+        }
+    }
 })
 
 // https://discordjs.guide/popular-topics/permissions.html#setting-role-permissions
