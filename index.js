@@ -2,7 +2,9 @@ const Discord = require("discord.js");
 const { MongoClient } = require('mongodb');
 const fs = require("fs");
 const dataHelper = require("./helpers/dataHelper");
+const discordHelper = require("./helpers/discordHelper");
 const { privateCreationChannel, publicCreationChannel } = require("./helpers/dataHelper");
+const { create } = require("domain");
 
 
 const VAULT_OPTIONS = {
@@ -73,13 +75,25 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     let guildData = await dataHelper.getGuildData(DB, guildId)
     let newGuildData = { ...guildData };
 
+    
     if (newChannel != null) {
         if (privateCreationChannel(guildData, newChannel)) {
             console.log("Create Private")
         } else if (publicCreationChannel(guildData, newChannel)) {
-            console.log("Create Public")
+            let [createdChannel, inCategory] = await discordHelper.createPublic(client, newChannel)
+            dataHelper.addCreatedPublicChannel(DB, guildId, inCategory, createdChannel)
+            newState.member.voice.setChannel(createdChannel)
         }
-    }
+
+    // Leaving voice entirely
+    } else {
+        let membersLeftInChannel = oldState.channel.members.size;
+        if (dataHelper.isPublicManagedChannel(guildData, oldChannel) && membersLeftInChannel == 0) {
+            discordHelper.deleteManagedPublic(oldState.channel);
+            dataHelper.deleteManagedPublic(DB, guildData, oldState);
+        }
+            
+    } 
 })
 
 // https://discordjs.guide/popular-topics/permissions.html#setting-role-permissions
