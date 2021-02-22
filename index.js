@@ -72,25 +72,62 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     let guildId = oldState.guild.id;
     let oldChannel = oldState.channelID;
     let newChannel = newState.channelID;
-    let guildData = await dataHelper.getGuildData(DB, guildId)
-    let newGuildData = { ...guildData };
+    // let guildData = await dataHelper.getGuildData(DB, guildId)
+    // let newGuildData = { ...guildData };
 
-    
+    // Prevously in a voice channel
+    if (oldChannel != null) {
+        console.log("previously in a voice channel")
+    }
+
+    // Joined
     if (newChannel != null) {
+        let guildData = await dataHelper.getGuildData(DB, guildId)
+
+        // Me private channels need created
         if (privateCreationChannel(guildData, newChannel)) {
-            console.log("Create Private")
+            let categoryId = await newState.channel.parent
+            let [privateId, waitingId] = await discordHelper.createPrivate(newState, categoryId)
+            dataHelper.addCreatedPrivateChannel(DB, guildId, categoryId, privateId, waitingId);
+            newState.member.voice.setChannel(privateId);
+
+        // New public channels need created
         } else if (publicCreationChannel(guildData, newChannel)) {
             let [createdChannel, inCategory] = await discordHelper.createPublic(client, newChannel)
             dataHelper.addCreatedPublicChannel(DB, guildId, inCategory, createdChannel)
             newState.member.voice.setChannel(createdChannel)
+
+        // Was moved into a private channel, give permission to move others in
+        } else if (dataHelper.joinedPrivateManagedChannel(guildData, newChannel)) {
+            console.log("Need to update User")
+            let waitingId = await dataHelper.getWaitingRoom(guildData, newState.channel);
+            discordHelper.allowMoveMembersToChannel(newState.channel, newState.member, client.channels.cache.get(waitingId))
         }
 
     // Leaving voice entirely
     } else {
+        let guildData = await dataHelper.getGuildData(DB, guildId)
         let membersLeftInChannel = oldState.channel.members.size;
         if (dataHelper.isPublicManagedChannel(guildData, oldChannel) && membersLeftInChannel == 0) {
-            discordHelper.deleteManagedPublic(oldState.channel);
+            discordHelper.deleteManagedChannel(oldState.channel);
             dataHelper.deleteManagedPublic(DB, guildData, oldState);
+
+
+        // Left Private Channel    
+        } else if (dataHelper.isPrivateManagedChannel(guildData, oldChannel)) {
+
+            // Last person in the channel
+            if (membersLeftInChannel == 0) {
+                discordHelper.deleteManagedChannel(oldState.channel);
+                let waitingId = await dataHelper.deleteManagedPrivate(DB, guildData, oldState);
+                discordHelper.deleteManagedChannel(client.channels.cache.get(waitingId));
+            
+            // People still in channel, remove privilege of person who left
+            } else {
+                let waitingId = await dataHelper.getWaitingRoom(guildData, oldState.channel);
+                discordHelper.removeMemberPrivilege(oldState.channel, client.channels.cache.get(waitingId), oldState.member)    
+            }
+
         }
             
     } 

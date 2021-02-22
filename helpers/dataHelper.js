@@ -74,6 +74,57 @@ module.exports = {
         db.updateOne({guildId: oldState.guild.id}, {$set: {public: dataToModify}})
 
         
+    }, 
+    addCreatedPrivateChannel: async function(db, guildId, categoryId, privateId, waitingId) {
+        let result = await db.findOne({guildId: guildId});
+        let dataToModify = [ ...result.private];
+
+        dataToModify.forEach(group => {
+            if (group.categoryId == categoryId) {
+                group.managedChannels.push({privateId: privateId, waitingId:waitingId});
+            }
+        })
+
+        db.updateOne({guildId: guildId}, {$set: {private: dataToModify}});
+    },
+    isPrivateManagedChannel: function(guildData, channelId) {
+        return guildData.private.some(group => group.managedChannels.some(combo => combo.privateId == channelId))
+    },
+    deleteManagedPrivate: async function(db, guildData, oldState) {
+        let dataToModify = [ ...guildData.private ];
+        let categoryId = await oldState.channel.parent;
+
+        for (let j = 0; j < dataToModify.length; j++) {
+            let group = dataToModify[j];
+            if (group.categoryId == categoryId) {
+                for (let i = 0; i < group.managedChannels.length; i++) {
+                    if (group.managedChannels[i].privateId == oldState.channel) {
+                        let waitingId = group.managedChannels[i].waitingId;
+                        group.managedChannels.splice(i, 1); 
+                        db.updateOne({guildId: oldState.guild.id}, {$set: {private: dataToModify}});
+                        return waitingId;
+                    }
+                }
+            }
+        }
+    },
+    getWaitingRoom: async function(guildData, private) {
+        let dataToModify = guildData.private;
+        let categoryId = await private.parent;
+        for (let j = 0; j < dataToModify.length; j++) {
+            let group = dataToModify[j];
+            if (group.categoryId == categoryId) {
+                for (let i = 0; i < group.managedChannels.length; i++) {
+                    if (group.managedChannels[i].privateId == private) {
+                        let waitingId = group.managedChannels[i].waitingId;
+                        return waitingId;
+                    }
+                }
+            }
+        }
+    },
+    joinedPrivateManagedChannel: function(guildData, channelId) {
+        return guildData.private.some(group => group.managedChannels.some(channelInfo => channelInfo.privateId == channelId));
     }
 
 }
