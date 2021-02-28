@@ -55,7 +55,7 @@ client.on("message", message => {
     if (!message.content.startsWith(PREFIX) || message.author.bot || !message.member.hasPermission('ADMINISTRATOR')) return;
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-	const command = args.shift();
+    const command = args.shift();
 
     if (!client.commands.has(command)) return;
 
@@ -72,13 +72,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     let guildId = oldState.guild.id;
     let oldChannel = oldState.channelID;
     let newChannel = newState.channelID;
-    // let guildData = await dataHelper.getGuildData(DB, guildId)
-    // let newGuildData = { ...guildData };
-
-    // Prevously in a voice channel
-    if (oldChannel != null) {
-        console.log("previously in a voice channel")
-    }
 
     // Joined
     if (newChannel != null) {
@@ -91,29 +84,34 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
             dataHelper.addCreatedPrivateChannel(DB, guildId, categoryId, privateId, waitingId);
             newState.member.voice.setChannel(privateId);
 
-        // New public channels need created
+            // New public channels need created
         } else if (publicCreationChannel(guildData, newChannel)) {
             let [createdChannel, inCategory] = await discordHelper.createPublic(client, newChannel)
             dataHelper.addCreatedPublicChannel(DB, guildId, inCategory, createdChannel)
             newState.member.voice.setChannel(createdChannel)
 
-        // Was moved into a private channel, give permission to move others in
+            // Was moved into a private channel, give permission to move others in
         } else if (dataHelper.joinedPrivateManagedChannel(guildData, newChannel)) {
             console.log("Need to update User")
             let waitingId = await dataHelper.getWaitingRoom(guildData, newState.channel);
             discordHelper.allowMoveMembersToChannel(newState.channel, newState.member, client.channels.cache.get(waitingId))
         }
 
-    // Leaving voice entirely
-    } else {
+        
+    } 
+    
+
+    // Leaving voice channel
+    if (oldChannel != null) {
         let guildData = await dataHelper.getGuildData(DB, guildId)
+        if (oldState.channel === null) return;
         let membersLeftInChannel = oldState.channel.members.size;
         if (dataHelper.isPublicManagedChannel(guildData, oldChannel) && membersLeftInChannel == 0) {
             discordHelper.deleteManagedChannel(oldState.channel);
             dataHelper.deleteManagedPublic(DB, guildData, oldState);
 
 
-        // Left Private Channel    
+            // Left Private Channel    
         } else if (dataHelper.isPrivateManagedChannel(guildData, oldChannel)) {
 
             // Last person in the channel
@@ -121,16 +119,16 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
                 discordHelper.deleteManagedChannel(oldState.channel);
                 let waitingId = await dataHelper.deleteManagedPrivate(DB, guildData, oldState);
                 discordHelper.deleteManagedChannel(client.channels.cache.get(waitingId));
-            
-            // People still in channel, remove privilege of person who left
+
+                // People still in channel, remove privilege of person who left
             } else {
                 let waitingId = await dataHelper.getWaitingRoom(guildData, oldState.channel);
-                discordHelper.removeMemberPrivilege(oldState.channel, client.channels.cache.get(waitingId), oldState.member)    
+                discordHelper.removeMemberPrivilege(oldState.channel, client.channels.cache.get(waitingId), oldState.member)
             }
 
         }
-            
-    } 
+
+    }
 })
 
 // https://discordjs.guide/popular-topics/permissions.html#setting-role-permissions
