@@ -15,6 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^12.5.1",
+    "graylog2": "^0.2.1",
     "mongodb": "^3.6.3",
     "mongoose": "^5.11.13",
     "node-vault": "^0.9.21"

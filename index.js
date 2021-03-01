@@ -7,6 +7,8 @@ const { privateCreationChannel, publicCreationChannel } = require("./helpers/dat
 const { create } = require("domain");
 
 
+
+
 const VAULT_OPTIONS = {
     apiVersion: "v1",
     endpoint: "http://192.168.73.20:8200",
@@ -32,12 +34,16 @@ async function getConnection() {
     DB = MONGO_CLIENT.db("nestdb").collection("open-voice")
 }
 
+function log(message) {
+    return new Date().toUTCString() + " | " + message;
+}
 
 (async () => {
     let openVoiceSec = await vault.read("node/open-voice")
     OPEN_VOICE_SECRETS = openVoiceSec.data;
     await getConnection();
-    client.login(OPEN_VOICE_SECRETS["dev-token"])
+    // client.login(OPEN_VOICE_SECRETS["dev-token"])
+    client.login(OPEN_VOICE_SECRETS["prod-token"])
 })();
 
 const commandFiles = fs.readdirSync("./commands").filter(file => file.endsWith(".js"));
@@ -79,6 +85,8 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
         // Me private channels need created
         if (privateCreationChannel(guildData, newChannel)) {
+            console.log(log(`${newState.guild.name} | ${newState.member.displayName} | Create Private`));
+
             let categoryId = await newState.channel.parent
             let [privateId, waitingId] = await discordHelper.createPrivate(newState, categoryId)
             dataHelper.addCreatedPrivateChannel(DB, guildId, categoryId, privateId, waitingId);
@@ -86,20 +94,23 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
             // New public channels need created
         } else if (publicCreationChannel(guildData, newChannel)) {
+            console.log(log(`${newState.guild.name} | ${newState.member.displayName } | Create Public`));
+
             let [createdChannel, inCategory] = await discordHelper.createPublic(client, newChannel)
             dataHelper.addCreatedPublicChannel(DB, guildId, inCategory, createdChannel)
             newState.member.voice.setChannel(createdChannel)
 
             // Was moved into a private channel, give permission to move others in
         } else if (dataHelper.joinedPrivateManagedChannel(guildData, newChannel)) {
-            console.log("Need to update User")
+            console.log(log(`${newState.guild.name} | ${newState.member.displayName} | ${newState.channel.name} | Add Permissions`))
+
             let waitingId = await dataHelper.getWaitingRoom(guildData, newState.channel);
             discordHelper.allowMoveMembersToChannel(newState.channel, newState.member, client.channels.cache.get(waitingId))
         }
 
-        
-    } 
-    
+
+    }
+
 
     // Leaving voice channel
     if (oldChannel != null) {
@@ -107,6 +118,8 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
         if (oldState.channel === null) return;
         let membersLeftInChannel = oldState.channel.members.size;
         if (dataHelper.isPublicManagedChannel(guildData, oldChannel) && membersLeftInChannel == 0) {
+            console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | Remove Public`))
+
             discordHelper.deleteManagedChannel(oldState.channel);
             dataHelper.deleteManagedPublic(DB, guildData, oldState);
 
@@ -116,12 +129,16 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
             // Last person in the channel
             if (membersLeftInChannel == 0) {
+                console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | Remove Private`))
+
                 discordHelper.deleteManagedChannel(oldState.channel);
                 let waitingId = await dataHelper.deleteManagedPrivate(DB, guildData, oldState);
                 discordHelper.deleteManagedChannel(client.channels.cache.get(waitingId));
 
                 // People still in channel, remove privilege of person who left
             } else {
+                console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | ${oldState.channel.name} | Remove Permissions`))
+
                 let waitingId = await dataHelper.getWaitingRoom(guildData, oldState.channel);
                 discordHelper.removeMemberPrivilege(oldState.channel, client.channels.cache.get(waitingId), oldState.member)
             }

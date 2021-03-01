@@ -26,9 +26,9 @@ module.exports = {
         let waiting =  await guild.channels.create(waitingName, {type: "voice", parent: categoryId, name: waitingName});
 
         private.createOverwrite(guild.roles.everyone, {"CONNECT": false})
-        private.createOverwrite(newState.member, {"CONNECT": true, "MOVE_MEMBERS": true});
+        // private.createOverwrite(newState.member, {"CONNECT": true, "MOVE_MEMBERS": true});
 
-        waiting.updateOverwrite(newState.member, {"MOVE_MEMBERS": true});
+        // waiting.updateOverwrite(newState.member, {"MOVE_MEMBERS": true});
 
         return [private.id, waiting.id]
     },
