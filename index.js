@@ -1,5 +1,5 @@
 const Discord = require("discord.js");
-const { MongoClient } = require('mongodb');
+const { Client, Pool } = require("pg");
 const fs = require("fs");
 const dataHelper = require("./helpers/dataHelper");
 const discordHelper = require("./helpers/discordHelper");
@@ -22,16 +22,15 @@ client.commands = new Discord.Collection();
 let OPEN_VOICE_SECRETS = {};
 let MONGO_CLIENT;
 let PREFIX = "?";
-let DB;
+let POOL;
 
 async function getConnection() {
-    let user = encodeURIComponent(OPEN_VOICE_SECRETS["db-username"]);
-    let password = encodeURIComponent(OPEN_VOICE_SECRETS["db-password"]);
-
-    let url = `mongodb://${user}:${password}@192.168.73.20:27017`;
-    MONGO_CLIENT = new MongoClient(url, { useNewUrlParser: true, useUnifiedTopology: true });
-    await MONGO_CLIENT.connect()
-    DB = MONGO_CLIENT.db("nestdb").collection("open-voice")
+    POOL = new Pool({
+        host: process.env.POSTGRES_URL,
+        user: process.env.POSTGRES_USERNAME,
+        password: process.env.POSTGRES_PASSWORD,
+        database: "open_voice"
+    });
 }
 
 function log(message) {
@@ -66,7 +65,7 @@ client.on("message", message => {
     if (!client.commands.has(command)) return;
 
     try {
-        client.commands.get(command).execute(message, args, DB);
+        client.commands.get(command).execute(message, args, POOL);
     } catch (error) {
         console.error(error);
         message.reply('there was an error trying to execute that command!');
@@ -79,32 +78,34 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     let oldChannel = oldState.channelID;
     let newChannel = newState.channelID;
 
+    // Determine if the bot has been setup in this server
+    let isSetup = await dataHelper.hasBotBeenSetup(POOL, guildId)
+    
     // Joined
-    if (newChannel != null) {
-        let guildData = await dataHelper.getGuildData(DB, guildId)
+    if (newChannel != null && isSetup) {
 
-        // Me private channels need created
-        if (privateCreationChannel(guildData, newChannel)) {
+        // New private channels need created
+        if (await privateCreationChannel(POOL, newChannel, guildId)) {
             console.log(log(`${newState.guild.name} | ${newState.member.displayName} | Create Private`));
 
-            let categoryId = await newState.channel.parent
+            let categoryId = await newState.channel.parent.id
             let [privateId, waitingId] = await discordHelper.createPrivate(newState, categoryId)
-            dataHelper.addCreatedPrivateChannel(DB, guildId, categoryId, privateId, waitingId);
+            dataHelper.addCreatedPrivateChannel(POOL, guildId, categoryId, privateId, waitingId);
             newState.member.voice.setChannel(privateId);
 
             // New public channels need created
-        } else if (publicCreationChannel(guildData, newChannel)) {
+        } else if (await publicCreationChannel(POOL, newChannel, guildId)) {
             console.log(log(`${newState.guild.name} | ${newState.member.displayName } | Create Public`));
 
             let [createdChannel, inCategory] = await discordHelper.createPublic(client, newChannel)
-            dataHelper.addCreatedPublicChannel(DB, guildId, inCategory, createdChannel)
+            dataHelper.addCreatedPublicChannel(POOL, guildId, inCategory, createdChannel)
             newState.member.voice.setChannel(createdChannel)
 
             // Was moved into a private channel, give permission to move others in
-        } else if (dataHelper.joinedPrivateManagedChannel(guildData, newChannel)) {
+        } else if (await dataHelper.isPrivateManagedChannel(POOL, guildId, newChannel)) {
             console.log(log(`${newState.guild.name} | ${newState.member.displayName} | ${newState.channel.name} | Add Permissions`))
-
-            let waitingId = await dataHelper.getWaitingRoom(guildData, newState.channel);
+            let categoryId = await oldState.channel.parent.id
+            let waitingId = await dataHelper.getWaitingRoom(POOL, newChannel, guildId, categoryId);
             discordHelper.allowMoveMembersToChannel(newState.channel, newState.member, client.channels.cache.get(waitingId))
         }
 
@@ -113,33 +114,32 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
 
     // Leaving voice channel
-    if (oldChannel != null) {
-        let guildData = await dataHelper.getGuildData(DB, guildId)
-        if (oldState.channel === null) return;
+    if (oldChannel != null && isSetup && oldState.channel) {
         let membersLeftInChannel = oldState.channel.members.size;
-        if (dataHelper.isPublicManagedChannel(guildData, oldChannel) && membersLeftInChannel == 0) {
+        if (await dataHelper.isPublicManagedChannel(POOL, guildId, oldChannel) && membersLeftInChannel == 0) {
             console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | Remove Public`))
 
             discordHelper.deleteManagedChannel(oldState.channel);
-            dataHelper.deleteManagedPublic(DB, guildData, oldState);
+            dataHelper.deleteManagedPublic(POOL, guildId, oldState);
 
 
             // Left Private Channel    
-        } else if (dataHelper.isPrivateManagedChannel(guildData, oldChannel)) {
+        } else if (await dataHelper.isPrivateManagedChannel(POOL, guildId, oldChannel)) {
 
             // Last person in the channel
             if (membersLeftInChannel == 0) {
                 console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | Remove Private`))
 
                 discordHelper.deleteManagedChannel(oldState.channel);
-                let waitingId = await dataHelper.deleteManagedPrivate(DB, guildData, oldState);
+                let waitingId = await dataHelper.deleteManagedPrivate(POOL, guildId, oldState);
                 discordHelper.deleteManagedChannel(client.channels.cache.get(waitingId));
 
                 // People still in channel, remove privilege of person who left
             } else {
                 console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | ${oldState.channel.name} | Remove Permissions`))
-
-                let waitingId = await dataHelper.getWaitingRoom(guildData, oldState.channel);
+                let categoryId = await oldState.channel.parent.id
+                let channelId = oldState.channel.id
+                let waitingId = await dataHelper.getWaitingRoom(POOL, channelId, guildId, categoryId);
                 discordHelper.removeMemberPrivilege(oldState.channel, client.channels.cache.get(waitingId), oldState.member)
             }
 

@@ -1,6 +1,65 @@
 const { Db } = require("mongodb");
 
 module.exports = {
+    hasBotBeenSetup: async function(pool, guildId) {
+        let err, res = await pool.query('SELECT guild_id from guilds');
+        if (0 == res.rows.length) {
+            return false;
+        }
+        return true
+    },
+    privateCreationChannel: async function(pool, joinedChannelId, guildId)  {
+        let err, res = await pool.query('SELECT channel_id from private_create where guild_id=$1', [guildId]);
+        return res.rows.some((row) => row.channel_id == joinedChannelId)
+    },
+    addCreatedPrivateChannel: async function(pool, guildId, categoryId, privateId, waitingId) {
+        let err, res = await pool.query("INSERT INTO private_managed (channel_id, category_id, guild_id, waiting_room_id) VALUES ($1,$2,$3,$4)", [privateId, categoryId, guildId, waitingId])
+    },
+    isPrivateManagedChannel: async function(pool, guildId, channelId) {
+        let err, res = await pool.query("SELECT channel_id from private_managed where guild_id=$1", [guildId])
+        return res.rows.some((row) => row.channel_id == channelId)
+    },
+    deleteManagedPrivate: async function(pool, guildId, oldState) {
+        let categoryId = await oldState.channel.parent.id;
+        let channelId = oldState.channel.id
+
+        // let err, res = await pool.query("SELECT waiting_room_id from private_managed WHERE channel_id=$1 ANd guild_id=$2 AND category_id=$3", [channelId, guildId, categoryId])
+        // let waitingId = res.rows[0].waiting_room_id
+        let waitingId = await this.getWaitingRoom(pool, channelId, guildId, categoryId)
+        await pool.query("DELETE FROM private_managed WHERE channel_id=$1 AND guild_id=$2 AND category_id=$3",[channelId, guildId, categoryId]);
+        return waitingId
+    },
+    publicCreationChannel: async function(pool, joinedChannelId, guildId) {
+        let err, res = await pool.query('SELECT channel_id from public_create where guild_id=$1', [guildId]);
+        return res.rows.some((row) => row.channel_id == joinedChannelId)
+    },
+    addCreatedPublicChannel: async function(pool, guildId, categoryId, channelId) {
+        let err, res = await pool.query("INSERT INTO public_managed (channel_id, category_id, guild_id) VALUES ($1,$2,$3)", [channelId, categoryId, guildId])
+    },
+    isPublicManagedChannel: async function(pool, guildId, channelId) {
+        let err, res = await pool.query("SELECT channel_id from public_managed where guild_id=$1", [guildId])
+        return res.rows.some((row) => row.channel_id == channelId)
+    },
+    deleteManagedPublic: async function(pool, guildId, oldState) {
+        let categoryId = await oldState.channel.parent
+        let channelId = oldState.channel.id
+        await pool.query("DELETE FROM public_managed WHERE channel_id=$1 AND guild_id=$2 AND category_id=$3",[channelId, guildId, categoryId]);   
+    }, 
+    getWaitingRoom: async function(pool, channelId, guildId, categoryId) {
+        let err, res = await pool.query("SELECT waiting_room_id from private_managed WHERE channel_id=$1 ANd guild_id=$2 AND category_id=$3", [channelId, guildId, categoryId])
+        let waitingId = res.rows[0].waiting_room_id
+        return waitingId
+    },
+    
+
+
+
+
+
+
+
+
+
     checkForGuild: function(db, guildId) {
         let result = db.find({guildId: guildId});
         return result.toArray().length > 0;
@@ -32,97 +91,17 @@ module.exports = {
         }
 
     },
-    getGuildData: async function(db, guildId) {
-        return await db.findOne({guildId: guildId});
-    },
     
-    privateCreationChannel: function(guildData, channelId)  {
-        return guildData.private.some(e => e.channelId == channelId)
-    },
+    
 
-    publicCreationChannel: function(guildData, channelId) {
-        return guildData.public.some(e => e.channelId == channelId)
-    },
-    addCreatedPublicChannel: async function(db, guildId, categoryId, channelId) {
-        let result = await db.findOne({guildId: guildId});
-        let dataToModify = [ ...result.public];
+    
 
-        dataToModify.forEach(group => {
-            if (group.categoryId == categoryId) {
-                group.managedChannels.push(channelId)
-            }
-        })
 
-        db.updateOne({guildId: guildId}, {$set: {public: dataToModify}})
-    },
-    isPublicManagedChannel: function(guildData, channelId) {
-        return guildData.public.some(group => group.managedChannels.some(channel => channel == channelId));
-    },
-    deleteManagedPublic: async function(db, guildData, oldState) {
-        let dataToModify = [ ...guildData.public ];
-        let categoryId = await oldState.channel.parent
 
-        dataToModify.forEach(group => {
-            if (group.categoryId == categoryId) {
-                let ndx = group.managedChannels.indexOf(oldState.channel.id);
-                if (ndx > -1) {
-                    group.managedChannels.splice(ndx, 1);
-                }
-            }
-        })
+    
 
-        db.updateOne({guildId: oldState.guild.id}, {$set: {public: dataToModify}})
+    
 
-        
-    }, 
-    addCreatedPrivateChannel: async function(db, guildId, categoryId, privateId, waitingId) {
-        let result = await db.findOne({guildId: guildId});
-        let dataToModify = [ ...result.private];
-
-        dataToModify.forEach(group => {
-            if (group.categoryId == categoryId) {
-                group.managedChannels.push({privateId: privateId, waitingId:waitingId});
-            }
-        })
-
-        db.updateOne({guildId: guildId}, {$set: {private: dataToModify}});
-    },
-    isPrivateManagedChannel: function(guildData, channelId) {
-        return guildData.private.some(group => group.managedChannels.some(combo => combo.privateId == channelId))
-    },
-    deleteManagedPrivate: async function(db, guildData, oldState) {
-        let dataToModify = [ ...guildData.private ];
-        let categoryId = await oldState.channel.parent;
-
-        for (let j = 0; j < dataToModify.length; j++) {
-            let group = dataToModify[j];
-            if (group.categoryId == categoryId) {
-                for (let i = 0; i < group.managedChannels.length; i++) {
-                    if (group.managedChannels[i].privateId == oldState.channel) {
-                        let waitingId = group.managedChannels[i].waitingId;
-                        group.managedChannels.splice(i, 1); 
-                        db.updateOne({guildId: oldState.guild.id}, {$set: {private: dataToModify}});
-                        return waitingId;
-                    }
-                }
-            }
-        }
-    },
-    getWaitingRoom: async function(guildData, private) {
-        let dataToModify = guildData.private;
-        let categoryId = await private.parent;
-        for (let j = 0; j < dataToModify.length; j++) {
-            let group = dataToModify[j];
-            if (group.categoryId == categoryId) {
-                for (let i = 0; i < group.managedChannels.length; i++) {
-                    if (group.managedChannels[i].privateId == private) {
-                        let waitingId = group.managedChannels[i].waitingId;
-                        return waitingId;
-                    }
-                }
-            }
-        }
-    },
     joinedPrivateManagedChannel: function(guildData, channelId) {
         return guildData.private.some(group => group.managedChannels.some(channelInfo => channelInfo.privateId == channelId));
     }
