@@ -116,6 +116,8 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     // Leaving voice channel
     if (oldChannel != null && isSetup && oldState.channel) {
         let membersLeftInChannel = oldState.channel.members.size;
+        
+        // Left Public Channel
         if (await dataHelper.isPublicManagedChannel(POOL, guildId, oldChannel) && membersLeftInChannel == 0) {
             console.log(log(`${oldState.guild.name} | ${oldState.member.displayName} | Remove Public`))
 

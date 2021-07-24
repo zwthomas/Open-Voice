@@ -41,7 +41,7 @@ module.exports = {
         return res.rows.some((row) => row.channel_id == channelId)
     },
     deleteManagedPublic: async function(pool, guildId, oldState) {
-        let categoryId = await oldState.channel.parent
+        let categoryId = await oldState.channel.parent.id
         let channelId = oldState.channel.id
         await pool.query("DELETE FROM public_managed WHERE channel_id=$1 AND guild_id=$2 AND category_id=$3",[channelId, guildId, categoryId]);   
     }, 
