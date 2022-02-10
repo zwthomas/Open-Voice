@@ -79,7 +79,8 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     let newChannel = newState.channelID;
 
     // Determine if the bot has been setup in this server
-    let isSetup = await dataHelper.hasBotBeenSetup(POOL, guildId)
+//     let isSetup = await dataHelper.hasBotBeenSetup(POOL, guildId)
+    let isSetup = true
     
     // Joined
     if (newChannel != null && isSetup) {
