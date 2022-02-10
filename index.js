@@ -12,7 +12,7 @@ const { create } = require("domain");
 const VAULT_OPTIONS = {
     apiVersion: "v1",
     endpoint: "http://192.168.73.20:8200",
-    token: "s.tLWbbS9mBlEcDedkystiYG8P"
+    token: "s.NkYRYbkbnZduSOeUAf09Xl5z"
 };
 
 const vault = require("node-vault")(VAULT_OPTIONS);
