@@ -19,7 +19,7 @@
     "mongodb": "^3.6.3",
     "mongoose": "^5.11.13",
     "node-vault": "^0.9.21",
-    "pg": "^8.6.0"
+    "pg": "^8.7.1"
   },
   "bugs": {
     "url": "https://github.com/zwthomas/Open-Voice/issues"
